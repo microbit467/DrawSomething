@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>DrawWhat? by Dharshan</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      text-align: center;
+      background: #fafafa;
+    }
+    canvas {
+      border: 2px solid #000;
+      display: block;
+      margin: 10px auto;
+      background-color: #fff;
+      touch-action: none; /* Prevent default touch scrolling */
+    }
+    .controls {
+      margin-bottom: 10px;
+    }
+    label {
+      margin: 0 10px;
+      font-weight: bold;
+    }
+    button {
+      margin-left: 15px;
+      padding: 5px 15px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>DrawWhat? by Dharshan</h1>
+
+  <div class="controls">
+    <label for="tool">Tool:</label>
+    <select id="tool">
+      <option value="marker">Marker</option>
+      <option value="brush">Brush</option>
+      <option value="eraser">Eraser</option>
+    </select>
+
+    <label for="color">Color:</label>
+    <input type="color" id="color" value="#000000">
+
+    <label for="thickness">Thickness:</label>
+    <input type="range" id="thickness" min="1" max="30" value="5">
+
+    <button id="clearBtn">Clear</button>
+    <button id="saveBtn">Save</button>
+  </div>
+
+  <canvas id="drawCanvas" width="800" height="500"></canvas>
+
+  <script>
+    const canvas = document.getElementById('drawCanvas');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    let lastX = 0;
+    let lastY = 0;
+
+    const toolSelect = document.getElementById('tool');
+    const colorPicker = document.getElementById('color');
+    const thicknessSlider = document.getElementById('thickness');
+    const clearBtn = document.getElementById('clearBtn');
+    const saveBtn = document.getElementById('saveBtn');
+
+    // Set initial styles
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    function startDrawing(e) {
+      drawing = true;
+      [lastX, lastY] = getXY(e);
+    }
+
+    function stopDrawing() {
+      drawing = false;
+    }
+
+    function getXY(e) {
+      if(e.touches) {
+        // Touch event
+        const rect = canvas.getBoundingClientRect();
+        return [
+          e.touches[0].clientX - rect.left,
+          e.touches[0].clientY - rect.top
+        ];
+      } else {
+        // Mouse event
+        return [e.offsetX, e.offsetY];
+      }
+    }
+
+    function draw(e) {
+      if (!drawing) return;
+
+      const [x, y] = getXY(e);
+
+      ctx.lineWidth = thicknessSlider.value;
+
+      if(toolSelect.value === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.strokeStyle = 'rgba(0,0,0,1)';
+      } else {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = colorPicker.value;
+      }
+
+      if(toolSelect.value === 'marker') {
+        ctx.lineWidth = thicknessSlider.value;
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+        ctx.shadowBlur = 2;
+      } else if(toolSelect.value === 'brush') {
+        ctx.lineWidth = thicknessSlider.value * 2;
+        ctx.shadowColor = colorPicker.value;
+        ctx.shadowBlur = 10;
+      } else {
+        ctx.shadowBlur = 0;
+      }
+
+      ctx.beginPath();
+      ctx.moveTo(lastX, lastY);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+
+      [lastX, lastY] = [x, y];
+    }
+
+    // Event listeners for mouse
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+
+    // Event listeners for touch
+    canvas.addEventListener('touchstart', e => { e.preventDefault(); startDrawing(e); });
+    canvas.addEventListener('touchmove', e => { e.preventDefault(); draw(e); });
+    canvas.addEventListener('touchend', e => { e.preventDefault(); stopDrawing(e); });
+
+    clearBtn.addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    saveBtn.addEventListener('click', () => {
+      const dataURL = canvas.toDataURL('image/png');
+      const link = document.createElement('a');
+      link.href = dataURL;
+      link.download = 'DrawWhat_Drawing.png';
+      link.click();
+    });
+  </script>
+
+</body>
+</html>
