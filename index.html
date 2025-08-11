@@ -135,11 +135,16 @@
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
     canvas.addEventListener('mouseout', stopDrawing);
+    // Stop drawing if the mouse is released outside the canvas
+    window.addEventListener('mouseup', stopDrawing);
 
     // Event listeners for touch
     canvas.addEventListener('touchstart', e => { e.preventDefault(); startDrawing(e); });
     canvas.addEventListener('touchmove', e => { e.preventDefault(); draw(e); });
     canvas.addEventListener('touchend', e => { e.preventDefault(); stopDrawing(e); });
+    // Handle touch ending or cancellation outside the canvas
+    window.addEventListener('touchend', stopDrawing);
+    window.addEventListener('touchcancel', stopDrawing);
 
     clearBtn.addEventListener('click', () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
