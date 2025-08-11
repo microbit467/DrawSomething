@@ -6,17 +6,21 @@
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
-      text-align: center;
       background: #fafafa;
+    }
+    h1 { text-align: center; }
+    #wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
     }
     canvas {
       border: 2px solid #000;
-      display: block;
-      margin: 10px auto;
       background-color: #fff;
-      touch-action: none; /* Prevent default touch scrolling */
+      touch-action: none;
     }
     .controls {
+      text-align: center;
       margin-bottom: 10px;
     }
     label {
@@ -28,6 +32,16 @@
       padding: 5px 15px;
       font-size: 16px;
       cursor: pointer;
+    }
+    #game {
+      margin-left: 20px;
+      width: 250px;
+      padding: 10px;
+      border: 1px solid #ccc;
+      background: #fff;
+    }
+    #game h2 {
+      margin-top: 0;
     }
   </style>
 </head>
@@ -41,6 +55,15 @@
       <option value="marker">Marker</option>
       <option value="brush">Brush</option>
       <option value="eraser">Eraser</option>
+      <option value="pencil">Pencil</option>
+      <option value="highlighter">Highlighter</option>
+      <option value="spray">Spray</option>
+      <option value="line">Line</option>
+      <option value="rectangle">Rectangle</option>
+      <option value="circle">Circle</option>
+      <option value="rainbow">Rainbow</option>
+      <option value="text">Text</option>
+      <option value="aiCar">AI Car</option>
     </select>
 
     <label for="color">Color:</label>
@@ -53,14 +76,26 @@
     <button id="saveBtn">Save</button>
   </div>
 
-  <canvas id="drawCanvas" width="800" height="500"></canvas>
+  <div id="wrapper">
+    <canvas id="drawCanvas" width="800" height="500"></canvas>
+    <div id="game">
+      <h2>Draw & Guess</h2>
+      <button id="startGame">Start Game</button>
+      <p id="gamePrompt"></p>
+      <input type="text" id="guessInput" placeholder="Your guess">
+      <button id="guessBtn">Guess</button>
+      <p id="gameMsg"></p>
+    </div>
+  </div>
 
   <script>
     const canvas = document.getElementById('drawCanvas');
     const ctx = canvas.getContext('2d');
     let drawing = false;
-    let lastX = 0;
-    let lastY = 0;
+    let lastX = 0, lastY = 0;
+    let startX = 0, startY = 0;
+    let hue = 0;
+    let bbox = null;
 
     const toolSelect = document.getElementById('tool');
     const colorPicker = document.getElementById('color');
@@ -68,39 +103,78 @@
     const clearBtn = document.getElementById('clearBtn');
     const saveBtn = document.getElementById('saveBtn');
 
-    // Set initial styles
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+
+    const carImg = new Image();
+    carImg.crossOrigin = 'anonymous';
+    carImg.src = 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Drawn_car.png/320px-Drawn_car.png';
 
     function startDrawing(e) {
       drawing = true;
       [lastX, lastY] = getXY(e);
+      [startX, startY] = [lastX, lastY];
+      bbox = {minX: lastX, minY: lastY, maxX: lastX, maxY: lastY};
+
+      if(toolSelect.value === 'text') {
+        const txt = prompt('Enter text:');
+        if(txt) {
+          ctx.fillStyle = colorPicker.value;
+          ctx.font = thicknessSlider.value * 3 + 'px sans-serif';
+          ctx.fillText(txt, lastX, lastY);
+        }
+        drawing = false;
+      }
     }
 
-    function stopDrawing() {
+    function stopDrawing(e) {
+      if(!drawing) return;
       drawing = false;
+
+      if(toolSelect.value === 'line') {
+        ctx.strokeStyle = colorPicker.value;
+        ctx.lineWidth = thicknessSlider.value;
+        ctx.beginPath();
+        ctx.moveTo(startX, startY);
+        ctx.lineTo(lastX, lastY);
+        ctx.stroke();
+      } else if(toolSelect.value === 'rectangle') {
+        ctx.strokeStyle = colorPicker.value;
+        ctx.lineWidth = thicknessSlider.value;
+        ctx.strokeRect(startX, startY, lastX - startX, lastY - startY);
+      } else if(toolSelect.value === 'circle') {
+        ctx.strokeStyle = colorPicker.value;
+        ctx.lineWidth = thicknessSlider.value;
+        const radius = Math.hypot(lastX - startX, lastY - startY);
+        ctx.beginPath();
+        ctx.arc(startX, startY, radius, 0, Math.PI * 2);
+        ctx.stroke();
+      } else if(toolSelect.value === 'aiCar') {
+        drawCar(bbox);
+      }
     }
 
     function getXY(e) {
       if(e.touches) {
-        // Touch event
         const rect = canvas.getBoundingClientRect();
         return [
           e.touches[0].clientX - rect.left,
           e.touches[0].clientY - rect.top
         ];
       } else {
-        // Mouse event
         return [e.offsetX, e.offsetY];
       }
     }
 
     function draw(e) {
       if (!drawing) return;
-
       const [x, y] = getXY(e);
-
-      ctx.lineWidth = thicknessSlider.value;
+      if(bbox){
+        bbox.minX = Math.min(bbox.minX, x);
+        bbox.minY = Math.min(bbox.minY, y);
+        bbox.maxX = Math.max(bbox.maxX, x);
+        bbox.maxY = Math.max(bbox.maxY, y);
+      }
 
       if(toolSelect.value === 'eraser') {
         ctx.globalCompositeOperation = 'destination-out';
@@ -112,12 +186,34 @@
 
       if(toolSelect.value === 'marker') {
         ctx.lineWidth = thicknessSlider.value;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
+        ctx.shadowColor = 'rgba(0,0,0,0.1)';
         ctx.shadowBlur = 2;
       } else if(toolSelect.value === 'brush') {
         ctx.lineWidth = thicknessSlider.value * 2;
         ctx.shadowColor = colorPicker.value;
         ctx.shadowBlur = 10;
+      } else if(toolSelect.value === 'pencil') {
+        ctx.lineWidth = thicknessSlider.value;
+        ctx.shadowBlur = 0;
+      } else if(toolSelect.value === 'highlighter') {
+        ctx.lineWidth = thicknessSlider.value * 4;
+        ctx.strokeStyle = hexToRgba(colorPicker.value, 0.3);
+        ctx.shadowBlur = 0;
+      } else if(toolSelect.value === 'spray') {
+        sprayPaint(x, y);
+        [lastX, lastY] = [x, y];
+        return;
+      } else if(toolSelect.value === 'rainbow') {
+        ctx.lineWidth = thicknessSlider.value;
+        ctx.strokeStyle = `hsl(${hue},100%,50%)`;
+        hue = (hue + 1) % 360;
+        ctx.shadowBlur = 0;
+      } else if(['line','rectangle','circle'].includes(toolSelect.value)) {
+        [lastX, lastY] = [x, y];
+        return;
+      } else if(toolSelect.value === 'aiCar') {
+        ctx.lineWidth = thicknessSlider.value;
+        ctx.shadowBlur = 0;
       } else {
         ctx.shadowBlur = 0;
       }
@@ -130,19 +226,46 @@
       [lastX, lastY] = [x, y];
     }
 
-    // Event listeners for mouse
+    function hexToRgba(hex, alpha) {
+      const bigint = parseInt(hex.slice(1), 16);
+      const r = (bigint >> 16) & 255;
+      const g = (bigint >> 8) & 255;
+      const b = bigint & 255;
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    function sprayPaint(x, y) {
+      const density = thicknessSlider.value * 5;
+      for(let i = 0; i < density; i++) {
+        const offsetX = getRandomOffset(thicknessSlider.value * 2);
+        const offsetY = getRandomOffset(thicknessSlider.value * 2);
+        ctx.fillStyle = colorPicker.value;
+        ctx.fillRect(x + offsetX, y + offsetY, 1, 1);
+      }
+    }
+
+    function getRandomOffset(radius) {
+      return Math.random() * radius * 2 - radius;
+    }
+
+    function drawCar(b) {
+      const w = b.maxX - b.minX;
+      const h = b.maxY - b.minY;
+      const x = b.minX;
+      const y = b.minY;
+      ctx.clearRect(b.minX, b.minY, w, h);
+      ctx.drawImage(carImg, x, y, w, h);
+    }
+
     canvas.addEventListener('mousedown', startDrawing);
     canvas.addEventListener('mousemove', draw);
     canvas.addEventListener('mouseup', stopDrawing);
     canvas.addEventListener('mouseout', stopDrawing);
-    // Stop drawing if the mouse is released outside the canvas
     window.addEventListener('mouseup', stopDrawing);
 
-    // Event listeners for touch
     canvas.addEventListener('touchstart', e => { e.preventDefault(); startDrawing(e); });
     canvas.addEventListener('touchmove', e => { e.preventDefault(); draw(e); });
     canvas.addEventListener('touchend', e => { e.preventDefault(); stopDrawing(e); });
-    // Handle touch ending or cancellation outside the canvas
     window.addEventListener('touchend', stopDrawing);
     window.addEventListener('touchcancel', stopDrawing);
 
@@ -156,6 +279,32 @@
       link.href = dataURL;
       link.download = 'DrawWhat_Drawing.png';
       link.click();
+    });
+
+    // Mini game logic
+    const words = ['car', 'house', 'tree', 'cat', 'sun', 'boat', 'phone', 'book', 'flower', 'fish'];
+    const startGameBtn = document.getElementById('startGame');
+    const gamePrompt = document.getElementById('gamePrompt');
+    const guessInput = document.getElementById('guessInput');
+    const guessBtn = document.getElementById('guessBtn');
+    const gameMsg = document.getElementById('gameMsg');
+    let currentWord = '';
+
+    startGameBtn.addEventListener('click', () => {
+      currentWord = words[Math.floor(Math.random() * words.length)];
+      gamePrompt.textContent = 'Draw: ' + currentWord;
+      gameMsg.textContent = '';
+      guessInput.value = '';
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    guessBtn.addEventListener('click', () => {
+      if(!currentWord) return;
+      if(guessInput.value.trim().toLowerCase() === currentWord) {
+        gameMsg.textContent = 'Correct!';
+      } else {
+        gameMsg.textContent = 'Try again!';
+      }
     });
   </script>
 
